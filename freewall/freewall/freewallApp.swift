@@ -65,8 +65,9 @@ struct freewallApp: App {
         .commands {
             CommandGroup(replacing: .appInfo) {
                 Button("freewall 정보") {
+                    let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
                     NSApplication.shared.orderFrontStandardAboutPanel(
-                        options: [NSApplication.AboutPanelOptionKey.version: "1.0"]
+                        options: [NSApplication.AboutPanelOptionKey.version: version]
                     )
                 }
             }
@@ -86,6 +87,11 @@ struct freewallApp: App {
             Divider()
             
             Button("대시보드 열기") {
+                appDelegate.showMainWindow()
+            }
+            
+            Button("업데이트 확인...") {
+                UpdateChecker.shared.checkForUpdates(isUserInitiated: true)
                 appDelegate.showMainWindow()
             }
             

@@ -4,6 +4,7 @@ struct ContentView: View {
     @StateObject private var manager = SpoofDPIManager.shared
     @StateObject private var settings = AppSettings.shared
     @StateObject private var launchManager = LaunchAtLoginManager.shared
+    @StateObject private var updater = UpdateChecker.shared
     @State private var currentTab = 0
     
     var body: some View {
@@ -27,13 +28,32 @@ struct ContentView: View {
             .padding(.top, 16)
             .padding(.bottom, 12)
             
+            if updater.updateAvailable, let url = updater.releaseUrl {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .foregroundStyle(.blue)
+                    Text("새로운 버전(\(updater.latestVersion)) 출시")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                    Spacer()
+                    Button("다운로드") {
+                        NSWorkspace.shared.open(url)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.mini)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 6)
+                .background(Color.blue.opacity(0.12))
+            }
+            
             Divider()
             
             Group {
                 if currentTab == 0 {
                     MinimalDashboardView(manager: manager, settings: settings, launchManager: launchManager)
                 } else if currentTab == 1 {
-                    MinimalSettingsView(manager: manager, settings: settings, launchManager: launchManager)
+                    MinimalSettingsView(manager: manager, settings: settings, launchManager: launchManager, updater: updater)
                 } else {
                     MinimalLogsView(manager: manager)
                 }
@@ -41,6 +61,9 @@ struct ContentView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(width: 440, height: 480)
+        .onAppear {
+            updater.checkForUpdates(isUserInitiated: false)
+        }
     }
 }
 
@@ -147,6 +170,7 @@ struct MinimalSettingsView: View {
     @ObservedObject var manager: SpoofDPIManager
     @ObservedObject var settings: AppSettings
     @ObservedObject var launchManager: LaunchAtLoginManager
+    @ObservedObject var updater: UpdateChecker
     
     var body: some View {
         Form {
@@ -216,6 +240,47 @@ struct MinimalSettingsView: View {
                 
                 Toggle("패킷 순서 섞기 (Disorder)", isOn: $settings.httpsDisorder)
                     .disabled(manager.isRunning)
+            }
+            
+            Section("버전 및 업데이트") {
+                HStack {
+                    Text("현재 버전")
+                    Spacer()
+                    Text("v\(updater.currentVersion)")
+                        .foregroundStyle(.secondary)
+                }
+                
+                HStack {
+                    Button(action: {
+                        updater.checkForUpdates(isUserInitiated: true)
+                    }) {
+                        HStack(spacing: 6) {
+                            if updater.isChecking {
+                                ProgressView()
+                                    .controlSize(.mini)
+                            }
+                            Text("업데이트 확인")
+                        }
+                    }
+                    .disabled(updater.isChecking)
+                    
+                    Spacer()
+                    
+                    if let url = updater.releaseUrl, updater.updateAvailable {
+                        Button("다운로드") {
+                            NSWorkspace.shared.open(url)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.blue)
+                        .controlSize(.small)
+                    }
+                }
+                
+                if !updater.statusMessage.isEmpty {
+                    Text(updater.statusMessage)
+                        .font(.caption2)
+                        .foregroundStyle(updater.updateAvailable ? .blue : .secondary)
+                }
             }
         }
         .formStyle(.grouped)

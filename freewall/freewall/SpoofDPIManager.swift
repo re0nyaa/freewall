@@ -342,3 +342,95 @@ class SpoofDPIManager: ObservableObject {
     }
 }
 
+struct GitHubRelease: Codable {
+    let tagName: String
+    let htmlUrl: String
+    let body: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case tagName = "tag_name"
+        case htmlUrl = "html_url"
+        case body
+    }
+}
+
+@MainActor
+class UpdateChecker: ObservableObject {
+    static let shared = UpdateChecker()
+    
+    @Published var isChecking = false
+    @Published var updateAvailable = false
+    @Published var latestVersion: String = ""
+    @Published var releaseUrl: URL? = nil
+    @Published var statusMessage: String = ""
+    
+    let currentVersion: String = {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+    }()
+    
+    func checkForUpdates(isUserInitiated: Bool = true) {
+        guard !isChecking else { return }
+        isChecking = true
+        if isUserInitiated {
+            statusMessage = "업데이트 확인 중..."
+        }
+        
+        guard let url = URL(string: "https://api.github.com/repos/re0nyaa/freewall/releases/latest") else {
+            isChecking = false
+            return
+        }
+        
+        var request = URLRequest(url: url)
+        request.setValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = 10
+        
+        Task {
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    self.isChecking = false
+                    return
+                }
+                
+                if httpResponse.statusCode == 200 {
+                    let release = try JSONDecoder().decode(GitHubRelease.self, from: data)
+                    let latest = release.tagName.replacingOccurrences(of: "v", with: "").trimmingCharacters(in: .whitespaces)
+                    let current = self.currentVersion.replacingOccurrences(of: "v", with: "").trimmingCharacters(in: .whitespaces)
+                    
+                    if self.isVersion(latest, newerThan: current) {
+                        self.updateAvailable = true
+                        self.latestVersion = release.tagName
+                        self.releaseUrl = URL(string: release.htmlUrl)
+                        self.statusMessage = "새로운 버전(\(release.tagName)) 사용 가능"
+                    } else {
+                        self.updateAvailable = false
+                        self.statusMessage = "최신 버전 사용 중 (v\(self.currentVersion))"
+                    }
+                } else if httpResponse.statusCode == 404 {
+                    self.statusMessage = "최신 버전 사용 중 (v\(self.currentVersion))"
+                } else {
+                    self.statusMessage = "확인 실패 (코드: \(httpResponse.statusCode))"
+                }
+            } catch {
+                self.statusMessage = "네트워크 오류"
+            }
+            self.isChecking = false
+        }
+    }
+    
+    private func isVersion(_ v1: String, newerThan v2: String) -> Bool {
+        let p1 = v1.split(separator: ".").compactMap { Int($0) }
+        let p2 = v2.split(separator: ".").compactMap { Int($0) }
+        let maxCount = max(p1.count, p2.count)
+        
+        for i in 0..<maxCount {
+            let num1 = i < p1.count ? p1[i] : 0
+            let num2 = i < p2.count ? p2[i] : 0
+            if num1 > num2 { return true }
+            if num1 < num2 { return false }
+        }
+        return false
+    }
+}
+
+
