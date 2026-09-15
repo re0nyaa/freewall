@@ -62,7 +62,7 @@ class AppSettings: ObservableObject {
     }
     
     func applyStandardPreset() {
-        dnsMode = "doh"
+        dnsMode = "https"
         dnsHttpsUrl = "https://dns.google/dns-query"
         httpsSplitMode = "sni"
         httpsChunkSize = 35
@@ -139,16 +139,24 @@ class SpoofDPIManager: ObservableObject {
         
         self.detectedBinaryPath = binaryPath
         
+        var dnsModeArg = settings.dnsMode
+        if dnsModeArg == "doh" { dnsModeArg = "https" }
+        if dnsModeArg == "sys" { dnsModeArg = "system" }
+        
         var arguments: [String] = [
             "--no-tui",
             "--listen-addr", "127.0.0.1:\(settings.port)",
-            "--dns-mode", settings.dnsMode,
-            "--dns-addr", settings.dnsAddr,
+            "--dns-mode", dnsModeArg,
             "--https-split-mode", settings.httpsSplitMode,
-            "--log-level", settings.logLevel
+            "--log-level", settings.logLevel,
+            "--tcp-timeout", "0"
         ]
         
-        if settings.dnsMode == "doh" {
+        if dnsModeArg == "udp" {
+            arguments.append(contentsOf: ["--dns-addr", settings.dnsAddr])
+        }
+        
+        if dnsModeArg == "https" {
             arguments.append(contentsOf: ["--dns-https-url", settings.dnsHttpsUrl])
         }
         

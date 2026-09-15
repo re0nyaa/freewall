@@ -187,14 +187,17 @@ struct MinimalSettingsView: View {
             Section("DNS 및 패킷 파편화") {
                 Picker("DNS 방식", selection: $settings.dnsMode) {
                     Text("UDP").tag("udp")
-                    Text("DoH").tag("doh")
-                    Text("시스템").tag("sys")
+                    Text("DoH").tag("https")
+                    Text("시스템").tag("system")
                 }
                 .pickerStyle(.segmented)
                 .disabled(manager.isRunning)
                 
                 if settings.dnsMode == "udp" {
                     TextField("DNS 서버", text: $settings.dnsAddr)
+                        .disabled(manager.isRunning)
+                } else if settings.dnsMode == "https" || settings.dnsMode == "doh" {
+                    TextField("DoH 주소", text: $settings.dnsHttpsUrl)
                         .disabled(manager.isRunning)
                 }
                 
